@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Training - Offline RAG Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+        .upload-area {
+            border: 2px dashed #cbd5e0;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            border-color: #667eea;
+            background-color: #f7fafc;
+        }
+        .upload-area.dragover {
+            border-color: #667eea;
+            background-color: #edf2f7;
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen">
+    <!-- Navigation -->
+    <nav class="glass-effect shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-bold text-gray-800">🤖 Offline RAG Chatbot</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="{{ url_for('training') }}" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition duration-300">Training</a>
+                    <a href="{{ url_for('chatbot') }}" class="px-4 py-2 rounded-lg bg-gray-600 text-white hover:bg-gray-700 transition duration-300">Chatbot</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-2xl mx-auto">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-bold text-white mb-2">Document Training</h2>
+                <p class="text-gray-200">Upload and process documents for your offline chatbot</p>
+            </div>
+
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="mb-4 p-4 rounded-lg {% if category == 'error' %}bg-red-100 border border-red-400 text-red-700{% else %}bg-green-100 border border-green-400 text-green-700{% endif %}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Upload Form -->
+            <div class="glass-effect rounded-xl shadow-xl p-8">
+                <form id="uploadForm" method="POST" enctype="multipart/form-data" action="{{ url_for('upload_document') }}">
+                    <!-- Document Name -->
+                    <div class="mb-6">
+                        <label for="doc_name" class="block text-sm font-medium text-gray-700 mb-2">
+                            Document Name
+                        </label>
+                        <input type="text" id="doc_name" name="doc_name" required
+                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                               placeholder="Enter a name for your document">
+                    </div>
+
+                    <!-- File Upload -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Choose Document
+                        </label>
+                        <div class="upload-area rounded-lg p-8 text-center cursor-pointer" id="uploadArea">
+                            <input type="file" id="document" name="document" required accept=".pdf,.html,.htm">
+                            <div id="uploadPlaceholder">
+                                <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                                <p class="text-gray-600 mb-2">Click to upload or drag and drop</p>
+                                <p class="text-sm text-gray-500">PDF or HTML files (MAX. 50MB)</p>
+                            </div>
+                            <div id="fileInfo" class="hidden">
+                                <p class="text-green-600 font-medium" id="fileName"></p>
+                                <p class="text-sm text-gray-500" id="fileSize"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Document Format -->
+                    <div class="mb-6">
+                        <label for="doc_format" class="block text-sm font-medium text-gray-700 mb-2">
+                            Document Format
+                        </label>
+                        <select id="doc_format" name="doc_format" required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            <option value="">Select format</option>
+                            <option value="pdf">PDF Document</option>
+                            <option value="html">HTML Document</option>
+                        </select>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="flex justify-center">
+                        <button type="submit" id="submitBtn"
+                                class="px-8 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span id="btnText">Upload and Process Document</span>
+                            <span id="btnLoading" class="hidden">
+                                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Processing...
+                            </span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Documents List -->
+            <div class="glass-effect rounded-xl shadow-xl p-8 mt-8">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Uploaded Documents</h3>
+                <div id="documentsList" class="space-y-2">
+                    <p class="text-gray-500 text-center">Loading documents...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // File upload handling
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('document');
+        const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const docFormat = document.getElementById('doc_format');
+
+        // Click to upload
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFileSelect(files[0]);
+            }
+        });
+
+        // File selection
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelect(file) {
+            // Validate file size (50MB max)
+            if (file.size > 50 * 1024 * 1024) {
+                alert('File size must be less than 50MB');
+                fileInput.value = '';
+                return;
+            }
+
+            // Validate file type
+            const validTypes = ['application/pdf', 'text/html', 'text/htm'];
+            const validExtensions = ['.pdf', '.html', '.htm'];
+            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!validTypes.includes(file.type) && !validExtensions.includes(fileExtension)) {
+                alert('Please upload a PDF or HTML file');
+                fileInput.value = '';
+                return;
+            }
+
+            // Auto-detect format
+            if (file.type === 'application/pdf' || fileExtension === '.pdf') {
+                docFormat.value = 'pdf';
+            } else if (file.type === 'text/html' || fileExtension === '.html' || fileExtension === '.htm') {
+                docFormat.value = 'html';
+            }
+
+            // Display file info
+            uploadPlaceholder.classList.add('hidden');
+            fileInfo.classList.remove('hidden');
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Form submission
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            const submitBtn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('btnText');
+            const btnLoading = document.getElementById('btnLoading');
+            
+            submitBtn.disabled = true;
+            btnText.classList.add('hidden');
+            btnLoading.classList.remove('hidden');
+        });
+
+        // Load documents list
+        async function loadDocuments() {
+            try {
+                const response = await fetch('/get_documents');
+                const data = await response.json();
+                
+                const documentsList = document.getElementById('documentsList');
+                
+                if (data.error) {
+                    documentsList.innerHTML = '<p class="text-red-500 text-center">Error loading documents</p>';
+                    return;
+                }
+                
+                if (data.documents && data.documents.length > 0) {
+                    documentsList.innerHTML = data.documents.map(doc => `
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center">
+                                <svg class="h-5 w-5 text-indigo-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                <span class="text-gray-700">${doc}</span>
+                            </div>
+                            <span class="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">Processed</span>
+                        </div>
+                    `).join('');
+                } else {
+                    documentsList.innerHTML = '<p class="text-gray-500 text-center">No documents uploaded yet</p>';
+                }
+            } catch (error) {
+                document.getElementById('documentsList').innerHTML = '<p class="text-red-500 text-center">Error loading documents</p>';
+            }
+        }
+
+        // Load documents on page load
+        loadDocuments();
+    </script>
+</body>
+</html>
